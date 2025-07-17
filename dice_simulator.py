@@ -1,3 +1,7 @@
+'''This project simulates rolling a user-defined n-sided die a specified number of times, tracking 
+the frequency of each face. The data from multiple experiments is stored in CSV files, and the program 
+performs statistical analyses—including distribution analysis, chi-squared goodness-of-fit tests, and deviation 
+analysis—to determine if the die is fair (i.e., each face has an equal probability of appearing).'''
 import random
 import csv
 import os
