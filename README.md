@@ -8,9 +8,9 @@ This Python program simulates dice rolls with customizable die sizes and roll co
 - Optional: matplotlib for histograms (`pip install matplotlib`)
 
 # How to Run
-1. Save the code as `dice_roller.py`
+1. Save the code as `dice_simulator.py`
 2. Run from terminal:
-python dice_roller.py
+python dice_simulator.py
 ```
 
 # Sample Session
