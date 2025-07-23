@@ -1,90 +1,207 @@
-'''This project simulates rolling a user-defined n-sided die a specified number of times, tracking 
-the frequency of each face. The data from multiple experiments is stored in CSV files, and the program 
-performs statistical analyses—including distribution analysis, chi-squared goodness-of-fit tests, and deviation 
-analysis—to determine if the die is fair (i.e., each face has an equal probability of appearing).'''
 import random
 import csv
-import os
+from collections import Counter
+from datetime import datetime
 
 
-class DiceSimulator:
-    def __init__(self, sides, rolls):
+class Die:
+    """A class representing a die with a configurable number of sides."""
+
+    def __init__(self, sides=6):
+        """
+        Initialize a die with given number of sides.
+
+        Args:
+            sides (int): Number of die faces (must be >=1)
+
+        Raises:
+            ValueError: If sides < 1
+        """
+        if sides < 1:
+            raise ValueError("Die must have at least 1 side")
         self.sides = sides
-        self.rolls = rolls
-        self.frequencies = [0] * sides  # Initialize frequency tracker for each face
+        self.roll_history = []
 
-    def roll_die(self):
-        return random.randint(1, self.sides)  # Simulate a single die roll
+    def roll(self):
+        """Roll the die once and return the result."""
+        result = random.randint(1, self.sides)
+        self.roll_history.append(result)
+        return result
 
-    def run_experiment(self):
-        for _ in range(self.rolls):
-            face = self.roll_die()
-            self.frequencies[face - 1] += 1  # Increment frequency of the rolled face
 
-    def save_to_csv(self, filename):
-        with open(filename, 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(['Face', 'Frequency'])  # CSV header
-            for face, freq in enumerate(self.frequencies, start=1):
-                writer.writerow([face, freq])  # Write face-frequency pairs
+def get_valid_input(prompt, validation_func, error_msg):
+    """
+    Get validated user input with error handling.
 
-    def load_from_csv(self, filename):
-        if not os.path.exists(filename):
-            return False
-        with open(filename, 'r') as file:
-            reader = csv.reader(file)
-            next(reader)  # Skip header
-            self.frequencies = []
-            for row in reader:
-                self.frequencies.append(int(row[1]))  # Load frequencies from CSV
-        return True
+    Args:
+        prompt (str): Input prompt
+        validation_func (callable): Validation function
+        error_msg (str): Validation error message
 
-    def analyze_distribution(self):
-        max_freq = max(self.frequencies)
-        print("\nDistribution Analysis (ASCII Histogram):")
-        for face, freq in enumerate(self.frequencies, start=1):
-            bar = '█' * int((freq / max_freq) * 50)  # Scale bar to 50 characters max
-            print(f"Face {face}: {bar} {freq} rolls")
+    Returns:
+        Validated input
+    """
+    while True:
+        try:
+            value = input(prompt).strip()
+            if not value:
+                continue
+            value = validation_func(value)
+            return value
+        except (ValueError, TypeError) as e:
+            print(f"\nInvalid input: {error_msg}")
+            print(f"Error details: {str(e)}\n")
 
-    def chi_squared_test(self, alpha=0.05):
-        expected = self.rolls / self.sides  # Expected frequency per face
-        chi_sq = sum((freq - expected) ** 2 / expected for freq in self.frequencies)  # χ² = Σ[(O-E)²/E]
-        critical_value = 12.592  # Pre-calculated for α=0.05 and 6 degrees of freedom (adjust if sides≠6)
-        print(f"\nChi-Squared Test (α=0.05):")
-        print(f"χ² = {chi_sq:.2f}, Critical Value = {critical_value}")
-        return chi_sq > critical_value  # True if die is biased
 
-    def deviation_analysis(self):
-        expected = self.rolls / self.sides
-        print("\nDeviation Analysis:")
-        for face, freq in enumerate(self.frequencies, start=1):
-            dev_abs = freq - expected
-            dev_pct = (dev_abs / expected) * 100
-            print(f"Face {face}: {dev_abs:+.2f} ({dev_pct:+.2f}%) deviation")
+def validate_die_size(value):
+    """Validate die size input."""
+    value = value.lower()
+    if value.startswith('d'):
+        value = value[1:]
+
+    size = int(value)
+    if size < 1:
+        raise ValueError("Die size must be at least 1")
+    return size
+
+
+def validate_roll_count(value):
+    """Validate roll count input."""
+    count = int(value)
+    if count < 1:
+        raise ValueError("Must roll at least once")
+    return count
+
+
+def roll_multiple_dice(die, num_rolls):
+    """Roll a die multiple times and return results."""
+    return [die.roll() for _ in range(num_rolls)]
+
+
+def save_to_csv(results, die_size):
+    """Save roll results to a timestamped CSV file."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"d{die_size}_rolls_{timestamp}.csv"
+
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Roll #', 'Result'])
+        for i, result in enumerate(results, 1):
+            writer.writerow([i, result])
+
+    return filename
+
+
+def generate_stats(results):
+    """Generate statistics from roll results."""
+    stats = {
+        'min': min(results),
+        'max': max(results),
+        'mean': sum(results) / len(results),
+        'mode': Counter(results).most_common(1)[0][0],
+        'total': len(results)
+    }
+    return stats
+
+
+def display_results(results, stats, die_size):
+    """Display roll results and statistics."""
+    print("\n" + "=" * 40)
+    print(f"RESULTS (d{die_size}):")
+    print("=" * 40)
+
+    # Show first 5 and last 5 rolls for large datasets
+    if len(results) > 10:
+        preview = results[:5] + ["..."] + results[-5:]
+    else:
+        preview = results
+
+    print(f"\nRolls: {', '.join(map(str, preview))}")
+
+    print("\nSTATISTICS:")
+    print(f"• Minimum: {stats['min']}")
+    print(f"• Maximum: {stats['max']}")
+    print(f"• Average: {stats['mean']:.2f}")
+    print(f"• Most common: {stats['mode']}")
+    print(f"• Total rolls: {stats['total']}")
+
+    # Show frequency distribution
+    print("\nFREQUENCY:")
+    counter = Counter(results)
+    for value in range(1, die_size + 1):
+        count = counter.get(value, 0)
+        percent = (count / len(results)) * 100
+        print(f"{value}: {count} rolls ({percent:.1f}%)")
+
+
+def try_plot_histogram(results, die_size):
+    """
+    Attempt to plot histogram if matplotlib is available.
+
+    Args:
+        results (list): Roll results
+        die_size (int): Number of die faces
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("\nMatplotlib not installed. Skipping histogram.")
+        print("Install with: pip install matplotlib")
+        return
+
+    plt.figure(figsize=(10, 6))
+    plt.hist(results, bins=range(1, die_size + 2), align='left', rwidth=0.8)
+    plt.title(f'd{die_size} Roll Distribution (n={len(results)})')
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.xticks(range(1, die_size + 1))
+    plt.grid(axis='y', alpha=0.75)
+
+    plt.tight_layout()
+    plt.savefig(f'd{die_size}_histogram.png')
+    plt.show()
 
 
 def main():
-    # User inputs
-    sides = int(input("Enter number of die sides: "))
-    rolls = int(input("Enter number of rolls: "))
-    filename = "dice_data.csv"
+    """Main program loop."""
+    print("=" * 50)
+    print("DICE ROLL SIMULATOR".center(50))
+    print("=" * 50)
 
-    # Run experiment and save data
-    simulator = DiceSimulator(sides, rolls)
-    simulator.run_experiment()
-    simulator.save_to_csv(filename)
-    print(f"\nSaved data to {filename}.")
+    while True:
+        # Get user input
+        die_size = get_valid_input(
+            "\nEnter die type (e.g., d4, d6, d20) or number of sides: ",
+            validate_die_size,
+            "Please enter a valid die size (e.g., 6, d10)"
+        )
 
-    # Reload data and analyze
-    if simulator.load_from_csv(filename):
-        simulator.analyze_distribution()
-        if simulator.chi_squared_test():
-            print("Result: Die is biased (reject H₀).")
-        else:
-            print("Result: Die is fair (fail to reject H₀).")
-        simulator.deviation_analysis()
-    else:
-        print("Error loading data.")
+        num_rolls = get_valid_input(
+            "Number of rolls: ",
+            validate_roll_count,
+            "Please enter a positive integer"
+        )
+
+        # Create die and roll
+        die = Die(die_size)
+        results = roll_multiple_dice(die, num_rolls)
+
+        # Save results and generate stats
+        filename = save_to_csv(results, die_size)
+        stats = generate_stats(results)
+
+        # Display results
+        display_results(results, stats, die_size)
+        print(f"\nResults saved to: {filename}")
+
+        # Attempt to show histogram
+        try_plot_histogram(results, die_size)
+
+        # Continue option
+        if input("\nRoll again? (y/n): ").lower() != 'y':
+            print("\nThanks for rolling! Goodbye!")
+            break
 
 
-main()
+if __name__ == "__main__":
+    main()
